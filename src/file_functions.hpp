@@ -1,66 +1,154 @@
 #ifndef FILE_FUNCTIONNS_HPP
 #define FILE_FUNCTIONNS_HPP
 
+#include <filesystem>
 #include <fstream>
 #include <future>
+#include <iostream>
 #include <string>
+#include <thread>
 
 #include "ts_queue.hpp"
 
 class FileReader {
-  std::ifstream m_fileStream;
-  bool          m_done;
+  std::ifstream        m_fileStream;
+  TSLimitQueue<Chunk> &m_dataQueue;
+  std::atomic<bool>   &m_stopWait;
+  std::atomic<bool>    m_done;
+  std::thread          m_thread;
+
+  bool open(std::string filePath);
+  void process();
 
 public:
-  explicit FileReader(std::string filePath) : m_done{false} {
-    m_fileStream.open(filePath, std::ios::binary);
-  }
-  ~FileReader() {
-    std::cout << "~FileReader\n";
+  explicit FileReader(std::string filePath, TSLimitQueue<Chunk> &dataQueue, std::atomic<bool> &stopWait)
+      : m_dataQueue(dataQueue), m_stopWait(stopWait), m_done{false} {
+    try {
+      if (open(std::move(filePath))) {
+        m_thread = std::thread(&FileReader::process, this);
+      }
+    } catch (std::exception const &e) {
+      std::cerr << "Error on creating reader thread: " << e.what() << std::endl;
+      m_done     = true;
+      m_stopWait = true;
+    }
   }
   FileReader(FileReader const &)            = delete;
   FileReader &operator=(FileReader const &) = delete;
 
-  void process(TSLimitQueue<Chunk> &dataQueue, std::atomic<bool> &endCond);
+  ~FileReader() {
+    if (m_thread.joinable()) {
+      m_thread.join();
+    }
+    m_done = true;
+  }
+
+  std::atomic<bool> &isDone() {
+    return m_done;
+  }
 };
 
-void FileReader::process(TSLimitQueue<Chunk> &dataQueue, std::atomic<bool> &endCond) {
-  size_t n{0};
-  while (m_fileStream.good() && !m_fileStream.eof()) {
-    Chunk chunk(n++);
-    m_fileStream.read(chunk.data(), Chunk::getSize());
-    dataQueue.wait_and_move(chunk);
-    std::cout << "read " << n << " s chunk\n";
+bool FileReader::open(std::string filePath) {
+  if (!std::filesystem::exists(filePath)) {
+    std::cout << "Error: file " << filePath << " doesn't exists" << std::endl;
+    m_done     = true;
+    m_stopWait = true;
+    return false;
   }
-  std::cout << "\nlast ckunk size is " << m_fileStream.gcount() << '\n';
-  endCond = true;
+
+  m_fileStream.open(filePath, std::ios::binary | std::ios::in);
+  if (!m_fileStream.is_open()) {
+    m_done     = true;
+    m_stopWait = true;
+    std::cerr << "Error on opening input file" << std::endl;
+    return false;
+  }
+
+  return true;
+}
+
+void FileReader::process() {
+  size_t n{0};
+  while (m_fileStream.good() && (!m_fileStream.eof()) && (!m_stopWait)) {
+    Chunk chunk{};
+    m_fileStream.read(chunk.data(), Chunk::getSize());
+    m_dataQueue.wait_and_move(std::move(chunk));
+    // std::cout << "read\n";
+  }
+  if (!m_fileStream.good()) {
+    m_stopWait = true;
+    std::cerr << "Error on input file reading" << std::endl;
+  }
+  m_done = true;
 }
 
 class FileWriter {
-  std::ofstream m_fileStream;
-  bool          m_done;
+  std::ofstream                        m_fileStream;
+  TSLimitQueue<std::future<uint32_t>> &m_futureHashs;
+  std::atomic<bool>                   &m_stopWait;
+  std::thread                          m_thread;
+
+  bool open(std::string filePath);
+  void process();
 
 public:
-  explicit FileWriter(std::string filePath) : m_done(false) {
-    m_fileStream.open(filePath, std::ios::binary);
+  explicit FileWriter(std::string                          filePath,
+                      TSLimitQueue<std::future<uint32_t>> &futureHashs,
+                      std::atomic<bool>                   &stopWait,
+                      std::atomic<bool>                   &stopOther)
+      : m_futureHashs(futureHashs), m_done(stopOther), m_stopWait(stopWait) {
+    try {
+      if (open(std::move(filePath))) {
+        m_thread = std::thread(&FileWriter::process, this);
+      }
+    } catch (std::exception const &e) {
+      std::cerr << "Error on creating writing thread: " << e.what() << std::endl;
+      m_done     = true;
+      m_stopWait = true;
+    }
   }
   FileWriter(FileWriter const &)            = delete;
   FileWriter &operator=(FileWriter const &) = delete;
 
-  void process(TSLimitQueue<std::future<uint32_t>> &futureHashs, std::atomic<bool> &endCond);
+  ~FileWriter() {
+    if (m_thread.joinable()) {
+      m_thread.join();
+    }
+    m_done = true;
+  }
+  std::atomic<bool> &m_done;
 };
 
-void FileWriter::process(TSLimitQueue<std::future<uint32_t>> &futureHashs, std::atomic<bool> &endCond) {
-  while (!m_done) {
-    auto     result = futureHashs.wait_and_pop();
-    uint32_t value{result.get()};
-    m_fileStream.write(reinterpret_cast<char *>(&value), 4);
-    std::cout << "write\n";
-    if (futureHashs.empty() && endCond) {
-      break;
-    }
+bool FileWriter::open(std::string filePath) {
+  m_fileStream.open(filePath, std::ios::binary | std::ios::out);
+  if (!m_fileStream.is_open()) {
+    m_done     = true;
+    m_stopWait = true;
+    std::cerr << "Error on opening file for output" << std::endl;
+    return false;
   }
-  std::cout << "FileWriter::process\n";
+
+  return true;
+}
+
+void FileWriter::process() {
+  try {
+    std::future<uint32_t> hashResult;
+    while (true) {
+      if (m_futureHashs.try_pop(hashResult)) {
+        uint32_t value{hashResult.get()};
+        m_fileStream.write(reinterpret_cast<char *>(&value), 4);
+        // std::cout << "write\n";
+      }
+      if (m_futureHashs.empty() && m_stopWait) {
+        break;
+      }
+    }
+  } catch (std::exception const &e) {
+    std::cerr << "Error during writing of the resulting file: " << e.what() << std::endl;
+  }
+  m_done     = true;
+  m_stopWait = true;
 }
 
 #endif // FILE_FUNCTIONNS_HPP

@@ -19,7 +19,7 @@ add_executable(veeam-test-problem
   src/file_functions.hpp
   src/ts_queue.hpp
   src/thread_pool.hpp
-  src/thread_pool.cpp
+  src/hasher.hpp
 )
 
 set_target_properties(veeam-test-problem PROPERTIES

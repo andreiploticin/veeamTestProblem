@@ -15,15 +15,28 @@ template<typename T> class TSLimitQueue {
 public:
   explicit TSLimitQueue(size_t size) : m_maxSize(size) {
   }
-  void wait_and_move(T &value);
+
+  void wait_and_move(T &&value);
   T    wait_and_pop();
+  bool try_pop(T &value) {
+    std::lock_guard lk{m_dataMutex};
+    if (m_queue.empty()) {
+      return false;
+    }
+    value = std::move(*m_queue.front());
+    m_queue.pop();
+    if (m_queue.size() < m_maxSize) {
+      m_notFullCond.notify_one();
+    }
+    return true;
+  }
   bool empty() const {
     std::lock_guard lk{m_dataMutex};
     return m_queue.empty();
   }
 };
 
-template<typename T> void TSLimitQueue<T>::wait_and_move(T &value) {
+template<typename T> void TSLimitQueue<T>::wait_and_move(T &&value) {
   std::shared_ptr<T> ptr(std::make_shared<T>(std::move(value)));
   std::unique_lock   lk{m_dataMutex};
   m_notFullCond.wait(lk, [this] {

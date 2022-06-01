@@ -10,7 +10,6 @@
 
 #include "ts_queue.hpp"
 
-
 //
 // exception-safe mechanism of threads destruction
 //
@@ -79,21 +78,7 @@ private:
   void workerThread();
 
 public:
-  ThreadPool(unsigned tn = 4) : m_done(false), m_joiner(m_threads) {
-    unsigned numerOfThreads = std::thread::hardware_concurrency();
-    std::cout << numerOfThreads << '\n';
-    // numerOfThreads = std::min(numerOfThreads, 4U);
-    numerOfThreads = tn;
-    try {
-      for (unsigned i{0U}; i < numerOfThreads; ++i) {
-        m_threads.push_back(std::thread(&ThreadPool::workerThread, this));
-      }
-    } catch (std::exception &e) {
-      std::cout << e.what() << '\n';
-      m_done = true;
-      throw;
-    }
-  }
+  ThreadPool(unsigned tn = 4);
   ~ThreadPool() {
     m_done = true;
   }
@@ -108,5 +93,33 @@ public:
     return m_workQueue.empty();
   }
 };
+
+ThreadPool::ThreadPool(unsigned tn) : m_done(false), m_joiner(m_threads) {
+  unsigned detected{std::thread::hardware_concurrency()};
+  detected = ((detected - 2) > tn) ? (detected - 2) : tn;
+  std::cout << "Process with " << detected << " thread(s)" << std::endl;
+
+  try {
+    for (unsigned i{0U}; i < 16; ++i) {
+      m_threads.push_back(std::thread(&ThreadPool::workerThread, this));
+    }
+  } catch (std::exception &e) {
+    std::cerr << "Error during creating \'worker\' tread: " << e.what() << std::endl;
+    m_done = true;
+    throw;
+  }
+}
+
+void ThreadPool::workerThread() {
+  while (!m_done) {
+    FunctionWrapper task;
+    if (m_workQueue.try_pop(task)) {
+      task();
+      std::cout << std::this_thread::get_id() << std::endl;
+    } else {
+      std::this_thread::yield();
+    }
+  }
+}
 
 #endif // THREAD_POOL_HPP
