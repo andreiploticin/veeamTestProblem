@@ -7,6 +7,8 @@
 #include "ts_queue.hpp"
 
 int main(int argc, char **argv) {
+  constexpr size_t CHUNK_SIZE{1'000'000};
+
   try {
     if (argc < 2) {
       std::cout << "\nWrong options.\nTry " << argv[0] << " <input file> <output file> [block size in bytes]\n"
@@ -17,7 +19,7 @@ int main(int argc, char **argv) {
     Chunk::setSize(CHUNK_SIZE);
     if (4 == argc) {
       try {
-        size_t blockSize{std::stol(std::string(argv[3]))};
+        size_t blockSize = std::stol(std::string(argv[3]));
         if (blockSize > 0) {
           Chunk::setSize(blockSize);
         }

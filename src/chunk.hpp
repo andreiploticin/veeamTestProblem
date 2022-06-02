@@ -3,8 +3,6 @@
 
 #include <memory>
 
-constexpr size_t CHUNK_SIZE{1'000'000};
-
 class Chunk {
   std::unique_ptr<char[]> m_data;
   static size_t           m_size;
