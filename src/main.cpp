@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
     Chunk::setSize(CHUNK_SIZE);
     if (4 == argc) {
       try {
-        size_t blockSize{std::stol(argv[3])};
+        size_t blockSize{std::stol(std::string(argv[3]))};
         if (blockSize > 0) {
           Chunk::setSize(blockSize);
         }
@@ -52,7 +52,6 @@ int main(int argc, char **argv) {
     // File writer
     FileWriter writer{argv[2], futureHashQueue, bStopAll, bWriterDone};
 
-    std::cout << "Done" << std::endl;
     return 0;
   } catch (std::exception const &e) {
     std::cerr << "Error: " << e.what() << std::endl;

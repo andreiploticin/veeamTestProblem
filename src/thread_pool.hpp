@@ -115,7 +115,6 @@ void ThreadPool::workerThread() {
     FunctionWrapper task;
     if (m_workQueue.try_pop(task)) {
       task();
-      std::cout << std::this_thread::get_id() << std::endl;
     } else {
       std::this_thread::yield();
     }

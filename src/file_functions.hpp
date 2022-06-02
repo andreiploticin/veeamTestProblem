@@ -2,6 +2,7 @@
 #define FILE_FUNCTIONNS_HPP
 
 #include <filesystem>
+#include <cstring>
 #include <fstream>
 #include <future>
 #include <iostream>
@@ -24,7 +25,7 @@ public:
   explicit FileReader(std::string filePath, TSLimitQueue<Chunk> &dataQueue, std::atomic<bool> &stopWait)
       : m_dataQueue(dataQueue), m_stopWait(stopWait), m_done{false} {
     try {
-      if (open(std::move(filePath))) {
+      if (open(filePath)) {
         m_thread = std::thread(&FileReader::process, this);
       }
     } catch (std::exception const &e) {
@@ -50,7 +51,7 @@ public:
 
 bool FileReader::open(std::string filePath) {
   if (!std::filesystem::exists(filePath)) {
-    std::cout << "Error: file " << filePath << " doesn't exists" << std::endl;
+    std::cerr << "Error: file " << filePath << " doesn't exists" << std::endl;
     m_done     = true;
     m_stopWait = true;
     return false;
@@ -69,15 +70,25 @@ bool FileReader::open(std::string filePath) {
 
 void FileReader::process() {
   size_t n{0};
-  while (m_fileStream.good() && (!m_fileStream.eof()) && (!m_stopWait)) {
-    Chunk chunk{};
-    m_fileStream.read(chunk.data(), Chunk::getSize());
-    m_dataQueue.wait_and_move(std::move(chunk));
-    // std::cout << "read\n";
-  }
-  if (!m_fileStream.good()) {
+  try {
+    while (m_fileStream.good() && (!m_fileStream.eof()) && (!m_stopWait)) {
+      Chunk chunk{};
+      m_fileStream.read(chunk.data(), Chunk::getSize());
+      if (m_fileStream.gcount() != Chunk::getSize()) {
+        if (!m_fileStream.eof()) {
+          std::cerr << "Error during file reading: unexpected size of read data" << std::endl;
+          m_stopWait = true;
+          break;
+        } else {
+          // tailing zeros
+          memset(chunk.data(), 0x0, Chunk::getSize() - m_fileStream.gcount());
+        }
+      }
+      m_dataQueue.wait_and_move(std::move(chunk));
+    }
+  } catch (std::exception const &e) {
+    std::cerr << "Error during file reading: " << e.what() << '\n';
     m_stopWait = true;
-    std::cerr << "Error on input file reading" << std::endl;
   }
   m_done = true;
 }
@@ -98,7 +109,7 @@ public:
                       std::atomic<bool>                   &stopOther)
       : m_futureHashs(futureHashs), m_done(stopOther), m_stopWait(stopWait) {
     try {
-      if (open(std::move(filePath))) {
+      if (open(filePath)) {
         m_thread = std::thread(&FileWriter::process, this);
       }
     } catch (std::exception const &e) {
@@ -138,7 +149,6 @@ void FileWriter::process() {
       if (m_futureHashs.try_pop(hashResult)) {
         uint32_t value{hashResult.get()};
         m_fileStream.write(reinterpret_cast<char *>(&value), 4);
-        // std::cout << "write\n";
       }
       if (m_futureHashs.empty() && m_stopWait) {
         break;

@@ -3,7 +3,7 @@
 
 #include <memory>
 
-constexpr size_t CHUNK_SIZE{1000000};
+constexpr size_t CHUNK_SIZE{1'000'000};
 
 class Chunk {
   std::unique_ptr<char[]> m_data;
@@ -12,17 +12,6 @@ class Chunk {
 public:
   Chunk() {
     m_data = std::unique_ptr<char[]>(new char[m_size]);
-  }
-
-  Chunk(Chunk const &)            = delete;
-  Chunk &operator=(Chunk const &) = delete;
-
-  Chunk(Chunk &&other) : m_data(std::move(other.m_data)) {
-  }
-
-  Chunk &operator=(Chunk &&other) {
-    m_data = std::move(other.m_data);
-    return *this;
   }
 
   char *const data() const {

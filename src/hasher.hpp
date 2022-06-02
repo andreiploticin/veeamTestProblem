@@ -43,7 +43,6 @@ void Hasher::process() {
       if (m_inQueue.try_pop(chunk)) {
         std::future<uint32_t> futureCRC = m_pool->submit([chunk = std::move(chunk), counter] {
           boost::crc_32_type result;
-          // std::this_thread::sleep_for(std::chrono::milliseconds(2));
           result.process_bytes(chunk.data(), Chunk::getSize());
           return result.checksum();
         });
