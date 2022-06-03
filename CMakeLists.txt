@@ -16,11 +16,11 @@ endif()
 
 add_executable(veeam-test-problem
   src/main.cpp
-  src/chunk.hpp
   src/file_functions.hpp
   src/ts_queue.hpp
   src/thread_pool.hpp
   src/hasher.hpp
+  src/pool_allocator.hpp
 )
 
 set_target_properties(veeam-test-problem PROPERTIES

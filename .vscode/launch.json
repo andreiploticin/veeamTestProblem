@@ -9,7 +9,7 @@
             "program": "${command:cmake.launchTargetPath}",
             "args": [
                 "c:\\tmp\\in2.dat",
-                "c:\\tmp\\out.dat", "100000000"
+                "c:\\tmp\\out.dat", "1000000"
             ],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
