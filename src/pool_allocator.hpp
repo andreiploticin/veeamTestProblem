@@ -1,6 +1,7 @@
 #ifndef POOL_ALLOCATOR_HPP
 #define POOL_ALLOCATOR_HPP
 #include <iostream>
+#include <queue>
 #include <stdlib.h>
 
 //
@@ -13,14 +14,24 @@ public:
   };
   explicit PoolAllocator(size_t chunksPerBlock) : m_chunksPerBlock(chunksPerBlock) {
   }
+  ~PoolAllocator() {
+    while (!m_allocatedBlocks.empty()) {
+      auto block = m_allocatedBlocks.front();
+      if (nullptr != block) {
+        free(block);
+      }
+      m_allocatedBlocks.pop();
+    }
+  }
   void *allocate(size_t size);
   void  deallocate(void *ptr);
 
 private:
-  std::mutex m_mtx;
-  size_t     m_chunksPerBlock;
-  Chunk     *m_alloc{nullptr};
-  Chunk     *allocateBlock(size_t chunkSize);
+  std::mutex          m_mtx;
+  size_t              m_chunksPerBlock;
+  Chunk              *m_alloc{nullptr};
+  Chunk              *allocateBlock(size_t chunkSize);
+  std::queue<Chunk *> m_allocatedBlocks;
 };
 
 PoolAllocator::Chunk *PoolAllocator::allocateBlock(size_t chunkSize) {
@@ -38,6 +49,8 @@ PoolAllocator::Chunk *PoolAllocator::allocateBlock(size_t chunkSize) {
     chunk       = chunk->next;
   }
   chunk->next = nullptr;
+
+  m_allocatedBlocks.push(blockStart);
   return blockStart;
 }
 
@@ -81,7 +94,7 @@ public:
     m_poolAllocator.deallocate(p);
   }
 };
-PoolAllocator Poolable::m_poolAllocator{20};
+PoolAllocator Poolable::m_poolAllocator{10};
 size_t        Poolable::m_size{0};
 
 class PoolCharArray : public Poolable {
