@@ -8,7 +8,7 @@
 
 
 int main(int argc, char **argv) {
-  constexpr size_t CHUNK_SIZE{1000};
+  constexpr size_t CHUNK_SIZE{1'000'000};
 
   try {
     if (argc < 2) {

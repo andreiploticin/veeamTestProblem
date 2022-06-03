@@ -8,8 +8,8 @@
             // Resolved by CMake Tools:
             "program": "${command:cmake.launchTargetPath}",
             "args": [
-                "c:\\tmp\\in2.dat",
-                "c:\\tmp\\out.dat", "1000000"
+                "c:\\tmp\\in3.dat",
+                "c:\\tmp\\out.dat"
             ],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
