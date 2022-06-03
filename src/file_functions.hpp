@@ -81,7 +81,7 @@ void FileReader::process() {
           break;
         } else {
           // tailing zeros
-          memset(chunk.data(), 0x0, Chunk::getSize() - m_fileStream.gcount());
+          memset(chunk.data() + m_fileStream.gcount(), 0x0, Chunk::getSize() - m_fileStream.gcount());
         }
       }
       m_dataQueue.wait_and_move(std::move(chunk));
