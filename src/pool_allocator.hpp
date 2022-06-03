@@ -75,12 +75,12 @@ void PoolAllocator::deallocate(void *ptr) {
 //
 // Can be allocated in pool
 //
-class Poolable {
+class PoolableData {
   static size_t        m_size;
   static PoolAllocator m_poolAllocator;
 
 public:
-  Poolable() = default;
+  PoolableData() = default;
   static size_t getSize() noexcept {
     return m_size;
   }
@@ -94,13 +94,7 @@ public:
     m_poolAllocator.deallocate(p);
   }
 };
-PoolAllocator Poolable::m_poolAllocator{10};
-size_t        Poolable::m_size{0};
-
-class PoolCharArray : public Poolable {
-public:
-  PoolCharArray() = default;
-  char data;
-};
+PoolAllocator PoolableData::m_poolAllocator{10};
+size_t        PoolableData::m_size{0};
 
 #endif // POOL_ALLOCATOR_HPP

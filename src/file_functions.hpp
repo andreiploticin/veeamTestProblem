@@ -14,7 +14,7 @@
 
 class FileReader {
   std::ifstream                                 m_fileStream;
-  TSLimitQueue<std::unique_ptr<PoolCharArray>> &m_dataQueue;
+  BlkQueue<std::unique_ptr<PoolableData>> &m_dataQueue;
   std::atomic<bool>                            &m_stopWait;
   std::atomic<bool>                             m_done;
   std::thread                                   m_thread;
@@ -24,7 +24,7 @@ class FileReader {
 
 public:
   explicit FileReader(std::string                                   filePath,
-                      TSLimitQueue<std::unique_ptr<PoolCharArray>> &dataQueue,
+                      BlkQueue<std::unique_ptr<PoolableData>> &dataQueue,
                       std::atomic<bool>                            &stopWait)
       : m_dataQueue(dataQueue), m_stopWait(stopWait), m_done{false} {
     try {
@@ -75,20 +75,20 @@ void FileReader::process() {
   size_t n{0};
   try {
     while (m_fileStream.good() && (!m_fileStream.eof()) && (!m_stopWait)) {
-      auto chunk = std::unique_ptr<PoolCharArray>(new PoolCharArray);
-      m_fileStream.read((char*)chunk.get(), PoolCharArray::getSize());
+      auto chunk = std::unique_ptr<PoolableData>(new PoolableData);
+      m_fileStream.read((char*)chunk.get(), PoolableData::getSize());
       auto a = m_fileStream.gcount();
-      if (a != PoolCharArray::getSize()) {
+      if (a != PoolableData::getSize()) {
         if (!m_fileStream.eof()) {
           std::cerr << "Error during file reading: unexpected size of read data" << std::endl;
           m_stopWait = true;
           break;
         } else {
           // tailing zeros
-          memset(&chunk->data + m_fileStream.gcount(), 0x0, PoolCharArray::getSize() - m_fileStream.gcount());
+          memset((char*)chunk.get() + m_fileStream.gcount(), 0x0, PoolableData::getSize() - m_fileStream.gcount());
         }
       }
-      m_dataQueue.wait_and_move(std::move(chunk));
+      m_dataQueue.push(std::move(chunk));
     }
   } catch (std::exception const &e) {
     std::cerr << "Error during file reading: " << e.what() << '\n';
@@ -99,7 +99,7 @@ void FileReader::process() {
 
 class FileWriter {
   std::ofstream                        m_fileStream;
-  TSLimitQueue<std::future<uint32_t>> &m_futureHashs;
+  BlkQueue<std::future<uint32_t>> &m_futureHashs;
   std::atomic<bool>                   &m_stopWait;
   std::thread                          m_thread;
 
@@ -108,7 +108,7 @@ class FileWriter {
 
 public:
   explicit FileWriter(std::string                          filePath,
-                      TSLimitQueue<std::future<uint32_t>> &futureHashs,
+                      BlkQueue<std::future<uint32_t>> &futureHashs,
                       std::atomic<bool>                   &stopWait,
                       std::atomic<bool>                   &stopOther)
       : m_futureHashs(futureHashs), m_done(stopOther), m_stopWait(stopWait) {

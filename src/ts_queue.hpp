@@ -5,58 +5,60 @@
 #include <mutex>
 #include <queue>
 
-template<typename T> class TSLimitQueue {
+template<typename T> class BlkQueue {
   std::queue<std::shared_ptr<T>> m_queue;
-  size_t                         m_maxSize;
+  size_t                         m_capacity;
   mutable std::mutex             m_dataMutex;
   std::condition_variable        m_notFullCond;
-  std::condition_variable        m_dataCond;
+  std::condition_variable        m_notEmptyCond;
 
 public:
-  explicit TSLimitQueue(size_t size) : m_maxSize(size) {
+  explicit BlkQueue(size_t capacity) : m_capacity(capacity) {
   }
 
-  void wait_and_move(T &&value);
-  T    wait_and_pop();
-  bool try_pop(T &value) {
-    std::lock_guard lk{m_dataMutex};
-    if (m_queue.empty()) {
-      return false;
-    }
-    value = std::move(*m_queue.front());
-    m_queue.pop();
-    if (m_queue.size() < m_maxSize) {
-      m_notFullCond.notify_one();
-    }
-    return true;
-  }
+  void push(T &&value);
+  T    wait_pop();
+  bool try_pop(T &value);
   bool empty() const {
     std::lock_guard lk{m_dataMutex};
     return m_queue.empty();
   }
 };
 
-template<typename T> void TSLimitQueue<T>::wait_and_move(T &&value) {
+template<typename T> void BlkQueue<T>::push(T &&value) {
   std::shared_ptr<T> ptr(std::make_shared<T>(std::move(value)));
   std::unique_lock   lk{m_dataMutex};
   m_notFullCond.wait(lk, [this] {
-    return m_queue.size() < m_maxSize;
+    return m_queue.size() < m_capacity;
   });
   m_queue.push(ptr);
-  m_dataCond.notify_one();
+  m_notEmptyCond.notify_one();
 }
 
-template<typename T> T TSLimitQueue<T>::wait_and_pop() {
+template<typename T> T BlkQueue<T>::wait_pop() {
   std::unique_lock lk{m_dataMutex};
-  m_dataCond.wait(lk, [this] {
+  m_notEmptyCond.wait(lk, [this] {
     return !m_queue.empty();
   });
   T value{std::move(*m_queue.front())};
   m_queue.pop();
-  if (m_queue.size() < m_maxSize) {
+  if (m_queue.size() < m_capacity) {
     m_notFullCond.notify_one();
   }
   return value; // move
+}
+
+template<typename T> bool BlkQueue<T>::try_pop(T &value) {
+  std::lock_guard lk{m_dataMutex};
+  if (m_queue.empty()) {
+    return false;
+  }
+  value = std::move(*m_queue.front());
+  m_queue.pop();
+  if (m_queue.size() < m_capacity) {
+    m_notFullCond.notify_one();
+  }
+  return true;
 }
 
 template<typename T> class ThreadSafeQueue {

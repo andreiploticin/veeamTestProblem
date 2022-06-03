@@ -8,7 +8,7 @@
             // Resolved by CMake Tools:
             "program": "${command:cmake.launchTargetPath}",
             "args": [
-                "c:\\tmp\\in3.dat",
+                "c:\\tmp\\in.dat",
                 "c:\\tmp\\out.dat"
             ],
             "stopAtEntry": false,
