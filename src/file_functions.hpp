@@ -1,28 +1,31 @@
 #ifndef FILE_FUNCTIONNS_HPP
 #define FILE_FUNCTIONNS_HPP
 
-#include <filesystem>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <future>
 #include <iostream>
 #include <string>
 #include <thread>
 
+#include "pool_allocator.hpp"
 #include "ts_queue.hpp"
 
 class FileReader {
-  std::ifstream        m_fileStream;
-  TSLimitQueue<Chunk> &m_dataQueue;
-  std::atomic<bool>   &m_stopWait;
-  std::atomic<bool>    m_done;
-  std::thread          m_thread;
+  std::ifstream                                 m_fileStream;
+  TSLimitQueue<std::unique_ptr<PoolCharArray>> &m_dataQueue;
+  std::atomic<bool>                            &m_stopWait;
+  std::atomic<bool>                             m_done;
+  std::thread                                   m_thread;
 
   bool open(std::string filePath);
   void process();
 
 public:
-  explicit FileReader(std::string filePath, TSLimitQueue<Chunk> &dataQueue, std::atomic<bool> &stopWait)
+  explicit FileReader(std::string                                   filePath,
+                      TSLimitQueue<std::unique_ptr<PoolCharArray>> &dataQueue,
+                      std::atomic<bool>                            &stopWait)
       : m_dataQueue(dataQueue), m_stopWait(stopWait), m_done{false} {
     try {
       if (open(filePath)) {
@@ -72,16 +75,17 @@ void FileReader::process() {
   size_t n{0};
   try {
     while (m_fileStream.good() && (!m_fileStream.eof()) && (!m_stopWait)) {
-      Chunk chunk{};
-      m_fileStream.read(chunk.data(), Chunk::getSize());
-      if (m_fileStream.gcount() != Chunk::getSize()) {
+      auto chunk = std::unique_ptr<PoolCharArray>(new PoolCharArray);
+      m_fileStream.read((char*)chunk.get(), PoolCharArray::getSize());
+      auto a = m_fileStream.gcount();
+      if (a != PoolCharArray::getSize()) {
         if (!m_fileStream.eof()) {
           std::cerr << "Error during file reading: unexpected size of read data" << std::endl;
           m_stopWait = true;
           break;
         } else {
           // tailing zeros
-          memset(chunk.data() + m_fileStream.gcount(), 0x0, Chunk::getSize() - m_fileStream.gcount());
+          memset(&chunk->data + m_fileStream.gcount(), 0x0, PoolCharArray::getSize() - m_fileStream.gcount());
         }
       }
       m_dataQueue.wait_and_move(std::move(chunk));
