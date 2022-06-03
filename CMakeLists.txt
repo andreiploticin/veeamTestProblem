@@ -33,9 +33,5 @@ target_link_libraries(veeam-test-problem PRIVATE Threads::Threads)
 
 target_include_directories(veeam-test-problem PRIVATE src)
 
-# set(CPACK_PROJECT_NAME ${PROJECT_NAME})
-# set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
-# include(CPack)
-
 
 
