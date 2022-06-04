@@ -6,27 +6,29 @@
 #include "thread_pool.hpp"
 #include "ts_queue.hpp"
 
+int printInfo(char *bin, char const *msg = "") {
+  std::cout << "Wrong options" << msg << ".\nTry " << bin << " <input file> <output file> [block size in bytes >=8]\n"
+            << std::endl;
+  return 1;
+}
 
 int main(int argc, char **argv) {
   constexpr size_t CHUNK_SIZE{1'000'000};
 
   try {
-    if (argc < 2) {
-      std::cout << "\nWrong options.\nTry " << argv[0] << " <input file> <output file> [block size in bytes]\n"
-                << std::endl;
-      return 1;
+    if ((argc < 3 || 4 < argc)) {
+      return printInfo(argv[0]);
     }
     PoolableData::setSize(CHUNK_SIZE);
     if (4 == argc) {
+      long blockSize{};
       try {
-        size_t blockSize = std::stol(std::string(argv[3]));
-        if (blockSize > 0) {
-          PoolableData::setSize(blockSize);
-        }
+        blockSize = std::stol(std::string(argv[3]));
       } catch (std::exception const &e) {
-        std::cout << "\nWrong options.\nTry " << argv[0] << " <input file> <output file> [block size in bytes]\n"
-                  << std::endl;
-        return 1;
+        return printInfo(argv[0], ": invalid block size format");
+      }
+      if (blockSize < 8) {
+        return printInfo(argv[0], ": invalid block size");
       }
     }
 

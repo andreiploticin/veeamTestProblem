@@ -2,7 +2,7 @@
 #define POOL_ALLOCATOR_HPP
 #include <iostream>
 #include <queue>
-#include <stdlib.h>
+#include <cassert>
 
 //
 // Allocate big Block of objects
@@ -85,6 +85,7 @@ public:
     return m_size;
   }
   static void setSize(size_t size) noexcept {
+    assert(size >= 8);
     m_size = size;
   }
   static void *operator new(size_t size) {
