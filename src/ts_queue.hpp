@@ -6,6 +6,7 @@
 #include <queue>
 
 template<typename T> class BlkQueue {
+
   std::queue<std::shared_ptr<T>> m_queue;
   size_t                         m_capacity;
   mutable std::mutex             m_dataMutex;

@@ -11,16 +11,17 @@ class Hasher {
   BlkQueue<std::unique_ptr<PoolableData>> &m_inQueue;
   BlkQueue<std::future<uint32_t>>         &m_resultQueue;
   std::unique_ptr<ThreadPool>              m_pool;
+  std::atomic<bool>                       &m_error;
   std::atomic<bool>                       &m_stopWait;
-  std::atomic<bool>                       &m_done;
+  std::atomic<bool>                        m_done;
   std::thread                              m_thread;
 
 public:
   explicit Hasher(BlkQueue<std::unique_ptr<PoolableData>> &inQueue,
                   BlkQueue<std::future<uint32_t>>         &resultQueue,
-                  std::atomic<bool>                       &stopWait,
-                  std::atomic<bool>                       &stopAll)
-      : m_inQueue(inQueue), m_resultQueue(resultQueue), m_stopWait(stopWait), m_done(stopAll) {
+                  std::atomic<bool>                       &errorFlag,
+                  std::atomic<bool>                       &stopWait)
+      : m_inQueue(inQueue), m_resultQueue(resultQueue), m_error(errorFlag), m_stopWait(stopWait), m_done(false) {
     m_pool   = std::make_unique<ThreadPool>();
     m_thread = std::thread(&Hasher::process, this);
   }
@@ -31,16 +32,18 @@ public:
     }
     m_done = true;
   }
+  std::atomic<bool> &isDone() {
+    return m_done;
+  }
   void process();
 };
 
 void Hasher::process() {
+  std::unique_ptr<PoolableData> chunk;
   try {
-    std::unique_ptr<PoolableData> chunk;
-    size_t                        counter{0};
-    while (true) {
+    while (!m_error) {
       if (m_inQueue.try_pop(chunk)) {
-        std::future<uint32_t> futureCRC = m_pool->submit([chunk = std::move(chunk), counter] {
+        std::future<uint32_t> futureCRC = m_pool->submit([chunk = std::move(chunk)] {
           boost::crc_32_type result;
           result.process_bytes((char *)chunk.get(), PoolableData::getSize());
           return result.checksum();
@@ -53,8 +56,10 @@ void Hasher::process() {
       }
     }
   } catch (std::exception const &e) {
+    m_error = true;
     std::cerr << "Error during hash calculating: " << e.what() << std::endl;
   }
+  (void)m_inQueue.try_pop(chunk); // unblock queue's 'pusher'
   m_done = true;
 }
 

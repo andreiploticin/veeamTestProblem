@@ -27,6 +27,8 @@ int main(int argc, char **argv) {
       } catch (std::exception const &e) {
         return printInfo(argv[0], ": invalid block size format");
       }
+      // Pool allocator limitation: data and pointer to next free data in pool share same memory,
+      // so we should have at least sizeof(void*) data chunk.
       if (blockSize < 8) {
         return printInfo(argv[0], ": invalid block size");
       }
@@ -44,20 +46,18 @@ int main(int argc, char **argv) {
     BlkQueue<std::future<uint32_t>> futureHashQueue{300UL};
 
     // Control flags
-    std::atomic<bool> bPoolEmpty{false};
-    std::atomic<bool> bStopAll{false};
-    std::atomic<bool> bWriterDone{false};
+    std::atomic<bool> errorFlag{false};
 
     // File reader
-    FileReader reader{argv[1], readDataQueue, bStopAll};
+    FileReader reader{argv[1], readDataQueue, errorFlag};
 
     // Hasher with pool of 'workers'
-    Hasher hasher(readDataQueue, futureHashQueue, reader.isDone(), bStopAll);
+    Hasher hasher(readDataQueue, futureHashQueue, errorFlag, reader.isDone());
 
     // File writer
-    FileWriter writer{argv[2], futureHashQueue, bStopAll, bWriterDone};
+    FileWriter writer{argv[2], futureHashQueue, errorFlag, hasher.isDone()};
 
-    return 0;
+    return errorFlag;
   } catch (std::exception const &e) {
     std::cerr << "Error: " << e.what() << std::endl;
     return 1;
