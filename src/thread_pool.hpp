@@ -104,8 +104,8 @@ ThreadPool::ThreadPool(unsigned tn) : m_done(false), m_joiner(m_threads) {
       m_threads.push_back(std::thread(&ThreadPool::workerThread, this));
     }
   } catch (std::exception &e) {
-    std::cerr << "Error during creating \'worker\' tread: " << e.what() << std::endl;
     m_done = true;
+    std::cerr << "Error during creating \'worker\' tread: " << e.what() << std::endl;
     throw;
   }
 }

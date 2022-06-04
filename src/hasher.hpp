@@ -22,8 +22,14 @@ public:
                   std::atomic<bool>                       &errorFlag,
                   std::atomic<bool>                       &stopWait)
       : m_inQueue(inQueue), m_resultQueue(resultQueue), m_error(errorFlag), m_stopWait(stopWait), m_done(false) {
-    m_pool   = std::make_unique<ThreadPool>();
-    m_thread = std::thread(&Hasher::process, this);
+    try {
+      m_pool   = std::make_unique<ThreadPool>();
+      m_thread = std::thread(&Hasher::process, this);
+    } catch (std::exception const &e) {
+      m_error = true;
+      m_done  = true;
+      std::cerr << "Error on creating hasher thread: " << e.what() << std::endl;
+    }
   }
 
   ~Hasher() {

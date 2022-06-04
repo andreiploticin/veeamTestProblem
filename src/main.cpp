@@ -7,7 +7,7 @@
 #include "ts_queue.hpp"
 
 int printInfo(char *bin, char const *msg = "") {
-  std::cout << "Wrong options" << msg << ".\nTry " << bin << " <input file> <output file> [block size in bytes >=8]\n"
+  std::cout << "Wrong options" << msg << ".\nTry " << bin << " <input file> <output file> [block size in bytes >=8]"
             << std::endl;
   return 1;
 }
@@ -27,8 +27,9 @@ int main(int argc, char **argv) {
       } catch (std::exception const &e) {
         return printInfo(argv[0], ": invalid block size format");
       }
-      // Pool allocator limitation: data and pointer to next free data in pool share same memory,
-      // so we should have at least sizeof(void*) data chunk.
+      // Pool allocator limitation: data and pointer to next free data in pool share the same memory,
+      // so data chunk have at least sizeof(void*).
+      // Another approach without such limitation would require a control container with pointers\indexes.
       if (blockSize < 8) {
         return printInfo(argv[0], ": invalid block size");
       }
@@ -36,7 +37,7 @@ int main(int argc, char **argv) {
 
     std::cout << "Process with block size = " << PoolableData::getSize() << std::endl;
 
-    // approximate queue size
+    // Approximate queue size
     size_t queueSize{(4ULL * 1024ULL * 1024ULL * 1024ULL - 30ULL) / PoolableData::getSize()};
 
     // Queue of readed chunks of data
